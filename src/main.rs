@@ -106,11 +106,18 @@ impl Board {
 
     fn add_bomb(&mut self) {
         let mut rng = rand::thread_rng();
-        let row = rng.gen_range(0..self.height);
-        let col = rng.gen_range(0..self.width);
+        let mut row;
+        let mut col;
 
-        /* TODO: Add checks for if the bomb is already there */
-        self.grid[row][col] = Tile::Bomb;
+        loop {
+            row = rng.gen_range(0..self.height);
+            col = rng.gen_range(0..self.width);
+
+            if let Tile::Adjacent(_) = self.grid[row][col] {
+                self.grid[row][col] = Tile::Bomb;
+                break;
+            }
+        }
 
         for p in Position::new(col, row).get_surrounding(self.width, self.height) {
             self.get(p.y, p.x).map(|t| {

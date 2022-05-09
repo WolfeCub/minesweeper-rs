@@ -72,6 +72,7 @@ struct Board {
     pub sprite_size: f32,
     pub grid: Vec<Vec<Tile>>,
     pub covered: HashMap<Position, Entity>,
+    pub flags: HashMap<Position, Entity>,
 }
 
 #[derive(Component)]
@@ -97,6 +98,7 @@ impl Board {
             sprite_size: 50., /* TODO: Configurable? */
             grid: vec![vec![Tile::Adjacent(0); width]; height],
             covered: HashMap::new(),
+            flags: HashMap::new(),
         }
     }
 
@@ -143,7 +145,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     for _ in 0..30 {
         board.add_bomb();
     }
-    println!("{}", board.to_string());
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let font = asset_server.load("FiraMono-Regular.ttf");
@@ -172,29 +173,44 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             board.covered.insert(Position::new(col, row), covered_entity);
 
-            commands.spawn_bundle(Text2dBundle {
-                transform: Transform::from_xyz(x, y, 0.),
-                text: Text {
-                    sections: vec![TextSection {
-                        value: match board.get(row, col) {
-                            Some(Tile::Bomb) => "B".to_string(),
-                            Some(Tile::Adjacent(val)) => val.to_string(),
-                            _ => "".to_string(),
+            match board.get(row, col) {
+                Some(Tile::Bomb) => {
+                    commands.spawn_bundle(SpriteBundle {
+                        texture: asset_server.load("bomb.png"),
+                        transform: Transform::from_xyz(x, y, 0.),
+                        sprite: Sprite {
+                            custom_size: Some(Vec2::new(board.sprite_size, board.sprite_size)),
+                            ..default()
                         },
-                        style: TextStyle {
-                            color: Color::rgb(1., 1., 1.),
-                            font: font.clone(),
-                            font_size: board.sprite_size,
-                        },
-                    }],
-                    alignment: TextAlignment {
-                        vertical: VerticalAlign::Center,
-                        horizontal: HorizontalAlign::Center,
-                    },
+                        ..default()
+                    })
+                    .insert(Position::new(col, row));
                 },
-                ..default()
-            })
-            .insert(Position::new(col, row));
+
+                Some(Tile::Adjacent(adjacent_value)) => {
+                    commands.spawn_bundle(Text2dBundle {
+                        transform: Transform::from_xyz(x, y, 0.),
+                        text: Text {
+                            sections: vec![TextSection {
+                                value: adjacent_value.to_string(),
+                                style: TextStyle {
+                                    color: Color::rgb(1., 1., 1.),
+                                    font: font.clone(),
+                                    font_size: board.sprite_size,
+                                },
+                            }],
+                            alignment: TextAlignment {
+                                vertical: VerticalAlign::Center,
+                                horizontal: HorizontalAlign::Center,
+                            },
+                        },
+                        ..default()
+                    })
+                    .insert(Position::new(col, row));
+                },
+
+                _ => panic!("Somehow iterated a tile that doesn't exist"),
+            }
         }
     }
 
@@ -205,32 +221,76 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn mouse_click_system(
     mouse_button_input: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    commands: Commands,
-    board: Res<Board>,
+    mut commands: Commands,
+    board: ResMut<Board>,
     game_state: Res<GameState>,
+    asset_server: Res<AssetServer>,
 ) {
     if game_state.complete { return; }
 
-    if mouse_button_input.just_released(MouseButton::Left) {
-        add_uncover(windows, commands, board);
-    } else if mouse_button_input.just_released(MouseButton::Right) {
-        add_uncover(windows, commands, board);
-    }
-}
+    /* TODO: Make this nicer. Ideally with `?` syntax */
+    let primary_window = windows.get_primary();
+    if primary_window.is_none() { return; }
+    let position_option = primary_window.unwrap().cursor_position();
+    if position_option.is_none() { return; }
 
-fn add_uncover(
-    windows: Res<Windows>,
-    mut commands: Commands,
-    board: Res<Board>,
-) -> Option<()> {
-    let position = windows.get_primary()?.cursor_position()?;
+    let position = position_option.unwrap();
+    
     let x = (position.x / board.sprite_size).floor() as usize;
     let y = (board.height as f32 - position.y / board.sprite_size).floor() as usize;
 
-    board.covered.get(&Position::new(x, y)).map(|entity| {
-        commands.entity(*entity).insert(ToUncover);
-    });
-    Some(())
+
+    if mouse_button_input.just_released(MouseButton::Left) {
+        if let Some(_) = board.flags.get(&Position::new(x, y)) {
+            return;
+        }
+
+        board.covered.get(&Position::new(x, y)).map(|entity| {
+            commands.entity(*entity).insert(ToUncover);
+        });
+    } else if mouse_button_input.just_released(MouseButton::Right) {
+        if let Some(_) = board.flags.get(&Position::new(x, y)) {
+            delete_flag(commands, board, x, y);
+            return;
+        }
+        add_flag(commands, board, asset_server, x, y);
+    }
+}
+
+fn delete_flag(
+    mut commands: Commands,
+    mut board: ResMut<Board>,
+    x: usize,
+    y: usize,
+) {
+    let pos = &Position::new(x, y);
+    if let Some(flag) = board.flags.get(pos) {
+        commands.entity(*flag).despawn();
+        board.flags.remove(pos);
+    }
+}
+    
+
+fn add_flag(
+    mut commands: Commands,
+    mut board: ResMut<Board>,
+    asset_server: Res<AssetServer>,
+    x: usize,
+    y: usize,
+) {
+    let pos_x = ((board.width as f32 / -2.) + x as f32) * board.sprite_size + board.sprite_size / 2.;
+    let pos_y = ((board.height as f32 / 2.) - y as f32) * board.sprite_size - board.sprite_size / 2.;
+
+    let entity = commands.spawn_bundle(SpriteBundle {
+        texture: asset_server.load("flag.png"),
+        transform: Transform::from_xyz(pos_x, pos_y, 2.),
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(board.sprite_size, board.sprite_size)),
+            ..default()
+        },
+        ..default()
+    }).id();
+    board.flags.insert(Position::new(x, y), entity);
 }
 
 fn uncover_system(

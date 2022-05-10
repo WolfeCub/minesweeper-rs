@@ -1,79 +1,14 @@
-use bevy::{prelude::*, window::PresentMode, sprite::SPRITE_SHADER_HANDLE, utils::HashMap};
-use rand::Rng;
+use bevy::{prelude::*, window::PresentMode};
 
-#[derive(Component, Debug, PartialEq, Eq, Hash, Clone, Copy)]
-struct Position {
-    x: usize,
-    y: usize,
-}
+mod board;
+use board::*;
 
-impl Position {
-    fn new(x: usize, y: usize) -> Position {
-        Position { x, y }
-    }
-}
+mod position;
+use position::*;
 
-impl Position {
-    fn get_surrounding(&self, width: usize, height: usize) -> Vec<Position> {
-        let irow = self.y as i32;
-        let icol = self.x as i32;
+mod tile;
+use tile::*;
 
-        /* TODO: Probably a faster way of doing this. Generators? */
-        let mut result: Vec<Position> = Vec::new();
-
-        for r in irow-1..=irow+1 {
-            for c in icol-1..=icol+1 {
-                if r < 0 || r >= height as i32 || c < 0 || c >= width as i32 {
-                    continue;
-                }
-
-                result.push(Position::new(c as usize, r as usize));
-            }
-        }
-        result
-    }
-
-    fn get_direct_adjacent(&self, width: usize, height: usize) -> Vec<Position> {
-        let irow = self.y as i32;
-        let icol = self.x as i32;
-
-        /* TODO: Probably a faster way of doing this. Generators? */
-        let mut result: Vec<Position> = Vec::new();
-
-        for (r, c) in vec![(irow-1, icol), (irow+1, icol), (irow, icol-1), (irow, icol+1)] {
-                if r < 0 || r >= height as i32 || c < 0 || c >= width as i32 {
-                    continue;
-            }
-
-            result.push(Position::new(c as usize, r as usize));
-        }
-        result
-    }
-}
-
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-enum Tile {
-    Adjacent(u8),
-    Bomb,
-}
-
-impl ToString for Tile {
-    fn to_string(&self) -> String {
-        match self {
-            Tile::Bomb => "B".to_string(),
-            Tile::Adjacent(val) => val.to_string(),
-        }
-    }
-}
-
-struct Board {
-    pub height: usize,
-    pub width: usize,
-    pub sprite_size: f32,
-    pub grid: Vec<Vec<Tile>>,
-    pub covered: HashMap<Position, Entity>,
-    pub flags: HashMap<Position, Entity>,
-}
 
 #[derive(Component)]
 struct ToUncover;
@@ -87,56 +22,6 @@ impl GameState {
         Self {
             complete: false,
         }
-    }
-}
-
-impl Board {
-    fn new(width: usize, height: usize) -> Self {
-        Self {
-            width,
-            height,
-            sprite_size: 50., /* TODO: Configurable? */
-            grid: vec![vec![Tile::Adjacent(0); width]; height],
-            covered: HashMap::new(),
-            flags: HashMap::new(),
-        }
-    }
-
-    fn get(&self, row: usize, col: usize) -> Option<Tile> {
-        Some(self.grid.get(row)?.get(col)?.clone())
-    }
-
-    fn add_bomb(&mut self) {
-        let mut rng = rand::thread_rng();
-        let mut row;
-        let mut col;
-
-        loop {
-            row = rng.gen_range(0..self.height);
-            col = rng.gen_range(0..self.width);
-
-            if let Tile::Adjacent(_) = self.grid[row][col] {
-                self.grid[row][col] = Tile::Bomb;
-                break;
-            }
-        }
-
-        for p in Position::new(col, row).get_surrounding(self.width, self.height) {
-            self.get(p.y, p.x).map(|t| {
-                self.grid[p.y][p.x] = match t {
-                    Tile::Adjacent(val) => Tile::Adjacent(val + 1),
-                    other => other
-                };
-            });
-        }
-    }
-}
-
-impl ToString for Board {
-    fn to_string(&self) -> String {
-        self.grid.iter().map(|row| {
-            row.iter().map(|item| item.to_string()).collect::<Vec<String>>().join(",")
-        }).collect::<Vec<String>>().join("\n")
     }
 }
 

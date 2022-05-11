@@ -56,7 +56,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             .insert(Position::new(col, row))
             .id();
 
-            board.covered.insert(Position::new(col, row), covered_entity);
+            board.add_covered(row, col, covered_entity);
 
             match board.get(row, col) {
                 Some(Tile::Bomb) => {
@@ -110,36 +110,32 @@ fn mouse_click_system(
     board: ResMut<Board>,
     game_state: Res<GameState>,
     asset_server: Res<AssetServer>,
-) {
-    if game_state.complete { return; }
+) -> Option<()> {
+    if game_state.complete { return Some(()); }
 
-    /* TODO: Make this nicer. Ideally with `?` syntax */
-    let primary_window = windows.get_primary();
-    if primary_window.is_none() { return; }
-    let position_option = primary_window.unwrap().cursor_position();
-    if position_option.is_none() { return; }
-
-    let position = position_option.unwrap();
+    let position = windows.get_primary()?.cursor_position()?;
     
     let x = (position.x / board.sprite_size).floor() as usize;
     let y = (board.height as f32 - position.y / board.sprite_size).floor() as usize;
 
 
     if mouse_button_input.just_released(MouseButton::Left) {
-        if let Some(_) = board.flags.get(&Position::new(x, y)) {
-            return;
+        if let Some(_) = board.get_flagged_by_pos(&Position::new(x, y)) {
+            return Some(());
         }
 
-        board.covered.get(&Position::new(x, y)).map(|entity| {
+        board.get_covered_by_pos(&Position::new(x, y)).map(|entity| {
             commands.entity(*entity).insert(ToUncover);
         });
     } else if mouse_button_input.just_released(MouseButton::Right) {
-        if let Some(_) = board.flags.get(&Position::new(x, y)) {
+        if let Some(_) = board.get_flagged_by_pos(&Position::new(x, y)) {
             delete_flag(commands, board, x, y);
-            return;
+            return Some(());
         }
         add_flag(commands, board, asset_server, x, y);
     }
+
+    Some(())
 }
 
 fn delete_flag(
@@ -148,10 +144,9 @@ fn delete_flag(
     x: usize,
     y: usize,
 ) {
-    let pos = &Position::new(x, y);
-    if let Some(flag) = board.flags.get(pos) {
+    if let Some(flag) = board.get_flagged(y, x) {
         commands.entity(*flag).despawn();
-        board.flags.remove(pos);
+        board.remove_flagged(y, x);
     }
 }
     
@@ -175,7 +170,7 @@ fn add_flag(
         },
         ..default()
     }).id();
-    board.flags.insert(Position::new(x, y), entity);
+    board.add_flagged(y, x, entity);
 }
 
 fn uncover_system(
@@ -189,57 +184,71 @@ fn uncover_system(
         let tile = board.get(pos.y, pos.x).unwrap();
 
         commands.entity(e).despawn_recursive();
-        board.covered.remove(pos);
+        board.remove_covered_by_pos(pos);
 
         match tile {
-            Tile::Adjacent(adj) => {
-                if adj == 0 {
-                    for p in pos.get_direct_adjacent(board.width, board.height) {
-                        board.covered.get(&p).map(|entity| {
-                            commands.entity(*entity).insert(ToUncover);
-                        });
-                    }
+            Tile::Adjacent(0) => {
+                for p in pos.get_surrounding(board.width, board.height) {
+                    board.get_covered_by_pos(&p).map(|entity| {
+                        commands.entity(*entity).insert(ToUncover);
+                    });
                 }
             },
             Tile::Bomb => {
                 game_state.complete = true;
 
-                /* TODO: Make this cleaner */
-                for row in 0..board.height {
-                    for col in 0..board.width {
-                        board.get(row, col).map(|t| {
-                            if t == Tile::Bomb {
-                                board.covered.get(&Position::new(col, row)).map(|entity| {
-                                    commands.entity(*entity).insert(ToUncover);
-                                });
-                            }
-                        });
+                for (pos, tile) in board.iter() {
+                    if *tile == Tile::Bomb {
+                        let covered = board.get_covered_by_pos(&pos);
+                        let flagged = board.get_flagged_by_pos(&pos);
+
+                        match (covered, flagged) {
+                            (Some(entity), None) => commands.entity(*entity).despawn(),
+                            _ => {}
+                        }
                     }
                 }
 
-                /* TODO: Refactor this out of here */
-                let font = asset_server.load("FiraMono-Regular.ttf");
-                commands.spawn_bundle(Text2dBundle {
-                    transform: Transform::from_xyz(0., 0., 100.),
-                    text: Text {
-                        sections: vec![TextSection {
-                            value: "GAME\nOVER".to_string(),
-                            style: TextStyle {
-                                color: Color::rgb(1., 0., 0.),
-                                font: font.clone(),
-                                font_size: board.sprite_size * 5.,
-                            },
-                        }],
-                        alignment: TextAlignment {
-                            vertical: VerticalAlign::Center,
-                            horizontal: HorizontalAlign::Center,
-                        },
-                    },
-                    ..default()
-                });
+                display_fullscreen_text(
+                    commands,
+                    asset_server,
+                    "GAME\nOVER".to_string(),
+                    Color::rgb(1., 0., 0.),
+                    board.sprite_size * 5.
+                );
+                return;
             },
+            _ => {},
         }
     }
+}
+
+fn display_fullscreen_text(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    message: String,
+    color: Color,
+    font_size: f32,
+) {
+    let font = asset_server.load("FiraMono-Regular.ttf");
+    commands.spawn_bundle(Text2dBundle {
+        transform: Transform::from_xyz(0., 0., 100.),
+        text: Text {
+            sections: vec![TextSection {
+                value: message,
+                style: TextStyle {
+                    color: color,
+                    font: font.clone(),
+                    font_size: font_size,
+                },
+            }],
+            alignment: TextAlignment {
+                vertical: VerticalAlign::Center,
+                horizontal: HorizontalAlign::Center,
+            },
+        },
+        ..default()
+    });
 }
 
 fn main() {
@@ -254,7 +263,7 @@ fn main() {
         .insert_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)))
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
-        .add_system(mouse_click_system)
+        .add_system(mouse_click_system.chain(|_| {})) /* Nom errors like clicking outside the screen */
         .add_system(uncover_system)
         .run();
 }

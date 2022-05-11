@@ -9,9 +9,9 @@ pub struct Board {
     pub height: usize,
     pub width: usize,
     pub sprite_size: f32,
-    pub grid: Vec<Vec<Tile>>,
-    pub covered: HashMap<Position, Entity>,
-    pub flags: HashMap<Position, Entity>,
+    grid: Vec<Vec<Tile>>,
+    covered: HashMap<Position, Entity>,
+    flags: HashMap<Position, Entity>,
 }
 
 impl Board {
@@ -28,6 +28,38 @@ impl Board {
 
     pub fn get(&self, row: usize, col: usize) -> Option<Tile> {
         Some(self.grid.get(row)?.get(col)?.clone())
+    }
+
+    pub fn get_covered(&self, row: usize, col: usize) -> Option<&Entity> {
+        self.covered.get(&Position::new(col, row))
+    }
+
+    pub fn get_covered_by_pos(&self, pos: &Position) -> Option<&Entity> {
+        self.covered.get(pos)
+    }
+
+    pub fn add_covered(&mut self, row: usize, col: usize, value: Entity) {
+        self.covered.insert(Position::new(col, row), value);
+    }
+
+    pub fn remove_covered_by_pos(&mut self, pos: &Position) {
+        self.covered.remove(pos);
+    }
+
+    pub fn get_flagged(&self, row: usize, col: usize) -> Option<&Entity> {
+        self.flags.get(&Position::new(col, row))
+    }
+
+    pub fn get_flagged_by_pos(&self, pos: &Position) -> Option<&Entity> {
+        self.flags.get(pos)
+    }
+
+    pub fn add_flagged(&mut self, row: usize, col: usize, value: Entity) {
+        self.flags.insert(Position::new(col, row), value);
+    }
+
+    pub fn remove_flagged(&mut self, row: usize, col: usize) {
+        self.flags.remove(&Position::new(col, row));
     }
 
     pub fn add_bomb(&mut self) {
@@ -54,6 +86,13 @@ impl Board {
             });
         }
     }
+
+    pub fn iter(&self) -> BoardIter {
+        BoardIter {
+            board: self,
+            counter: 0,
+        }
+    }
 }
 
 impl ToString for Board {
@@ -64,3 +103,21 @@ impl ToString for Board {
     }
 }
 
+pub struct BoardIter<'a> {
+    board: &'a Board,
+    counter: usize,
+}
+
+impl<'a> Iterator for BoardIter<'a> {
+    type Item = (Position, &'a Tile);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.counter / self.board.height;
+        let col = self.counter % self.board.width;
+
+        let tile = self.board.grid.get(row)?.get(col)?;
+        self.counter += 1;
+
+        Some((Position::new(col, row), tile))
+    }
+}

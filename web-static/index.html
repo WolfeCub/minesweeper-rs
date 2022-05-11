@@ -6,7 +6,14 @@
     import init from './minesweeper-rs.js';
     init();
 
-    const canvas = document.querySelector('canvas');
-    canvas.oncontextmenu = () => false;
+    const tryFixCanvas = () => {
+        const canvas = document.querySelector('canvas');
+	if (!canvas) {
+	    setTimeout(tryFixCanvas, 100)
+	} else {
+	    canvas.oncontextmenu = () => false;
+	}
+    };
+    tryFixCanvas();
   </script>
 </html>

@@ -26,6 +26,7 @@ impl GameState {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    /* TODO: Not hardcoded */
     let mut board = Board::new(20, 20);
     for _ in 0..30 {
         board.add_bomb();
@@ -103,6 +104,20 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(GameState::new());
 }
 
+fn has_won(
+    board: &ResMut<Board>,
+) -> bool {
+    for (pos, tile) in board.iter() {
+        let covered = board.get_covered_by_pos(&pos);
+
+        if covered.is_some() && *tile != Tile::Bomb {
+            return false;
+        }
+    }
+
+    true
+}
+
 fn mouse_click_system(
     mouse_button_input: Res<Input<MouseButton>>,
     windows: Res<Windows>,
@@ -114,7 +129,7 @@ fn mouse_click_system(
     if game_state.complete { return Some(()); }
 
     let position = windows.get_primary()?.cursor_position()?;
-    
+
     let x = (position.x / board.sprite_size).floor() as usize;
     let y = (board.height as f32 - position.y / board.sprite_size).floor() as usize;
 
@@ -149,7 +164,7 @@ fn delete_flag(
         board.remove_flagged(y, x);
     }
 }
-    
+
 
 fn add_flag(
     mut commands: Commands,
@@ -185,6 +200,19 @@ fn uncover_system(
 
         commands.entity(e).despawn_recursive();
         board.remove_covered_by_pos(pos);
+
+        if has_won(&board) {
+            game_state.complete = true;
+
+            display_fullscreen_text(
+                commands,
+                asset_server,
+                "YOU\nWON".to_string(),
+                Color::rgb(0., 1., 0.),
+                board.sprite_size * 5.
+            );
+            return;
+        }
 
         match tile {
             Tile::Adjacent(0) => {

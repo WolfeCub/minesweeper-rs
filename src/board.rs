@@ -89,7 +89,9 @@ impl Board {
 
     pub fn iter(&self) -> BoardIter {
         BoardIter {
-            board: self,
+            grid: &self.grid,
+            width: self.width,
+            height: self.height,
             counter: 0,
         }
     }
@@ -104,7 +106,9 @@ impl ToString for Board {
 }
 
 pub struct BoardIter<'a> {
-    board: &'a Board,
+    grid: &'a Vec<Vec<Tile>>,
+    width: usize,
+    height: usize,
     counter: usize,
 }
 
@@ -112,10 +116,10 @@ impl<'a> Iterator for BoardIter<'a> {
     type Item = (Position, &'a Tile);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let row = self.counter / self.board.height;
-        let col = self.counter % self.board.width;
+        let row = self.counter / self.height;
+        let col = self.counter % self.width;
 
-        let tile = self.board.grid.get(row)?.get(col)?;
+        let tile = self.grid.get(row)?.get(col)?;
         self.counter += 1;
 
         Some((Position::new(col, row), tile))

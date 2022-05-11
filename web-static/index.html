@@ -5,5 +5,8 @@
   <script type="module">
     import init from './minesweeper-rs.js';
     init();
+
+    const canvas = document.querySelector('canvas');
+    canvas.oncontextmenu = () => false;
   </script>
 </html>

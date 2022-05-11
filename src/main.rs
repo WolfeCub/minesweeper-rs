@@ -49,7 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 transform: Transform::from_xyz(x, y, 1.),
                 sprite: Sprite {
                     color: Color::rgb(0.5, 0.5, 0.5),
-                    custom_size: Some(Vec2::new(board.sprite_size, board.sprite_size)),
+                    custom_size: Some(Vec2::new(board.sprite_size - 2., board.sprite_size - 2.)),
                     ..default()
                 },
                 ..default()
@@ -65,7 +65,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         texture: asset_server.load("bomb.png"),
                         transform: Transform::from_xyz(x, y, 0.),
                         sprite: Sprite {
-                            custom_size: Some(Vec2::new(board.sprite_size, board.sprite_size)),
+                            custom_size: Some(Vec2::new(board.sprite_size - 2., board.sprite_size - 2.)),
                             ..default()
                         },
                         ..default()
@@ -180,7 +180,7 @@ fn add_flag(
         texture: asset_server.load("flag.png"),
         transform: Transform::from_xyz(pos_x, pos_y, 2.),
         sprite: Sprite {
-            custom_size: Some(Vec2::new(board.sprite_size, board.sprite_size)),
+            custom_size: Some(Vec2::new(board.sprite_size - 2., board.sprite_size - 2.)),
             ..default()
         },
         ..default()

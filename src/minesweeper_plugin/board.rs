@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::utils::HashMap;
 use rand::Rng;
 
-use crate::tile::*;
-use crate::position::*;
+use crate::minesweeper_plugin::tile::*;
+use crate::minesweeper_plugin::position::*;
 
 pub struct Board {
     pub height: usize,
